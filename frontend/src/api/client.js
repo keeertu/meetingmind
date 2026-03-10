@@ -54,7 +54,7 @@ export const api = {
   },
 
   async getMeetingStatus(meetingId) {
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status`);
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status?userId=${USER_ID}`);
     if (!res.ok) throw new Error('Failed to get status');
     return res.json();
   },
