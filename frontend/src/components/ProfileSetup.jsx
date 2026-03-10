@@ -6,8 +6,8 @@ import api from '../api/client';
 
 function ProfileSetup({ onProfileUpdate }) {
   const [profile, setProfile] = useState({
-    name: 'Keerat Khanuja',
-    role: 'AI Engineer / Data Scientist',
+    name: '',
+    role: '',
     projects: [],
     keywords: []
   });
