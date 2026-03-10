@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from './api/client';
 import LandingPage from './components/LandingPage';
@@ -36,6 +36,7 @@ function App() {
 
 function Navigation({ userProfile }) {
   const location = useLocation();
+  const savedProfile = JSON.parse(localStorage.getItem('meetingmind_profile') || 'null');
 
   return (
     <nav style={{
@@ -78,18 +79,37 @@ function Navigation({ userProfile }) {
               <NavLink to="/upload" label="Upload" />
             </div>
             
-            <div style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-              borderRadius: '9999px',
-              padding: '4px 12px',
-              fontSize: '12px',
-              fontFamily: 'Plus Jakarta Sans',
-              color: 'var(--text-secondary)',
-              transition: 'all 300ms ease'
-            }}>
-              {userProfile ? `${userProfile.name} · ${userProfile.role}` : 'Set up profile'}
-            </div>
+            {savedProfile ? (
+              <div style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: '9999px',
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontFamily: 'Plus Jakarta Sans',
+                color: 'var(--text-secondary)',
+                transition: 'all 300ms ease'
+              }}>
+                {`${savedProfile.name} · ${savedProfile.role}`}
+              </div>
+            ) : (
+              <Link 
+                to="/profile"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '9999px',
+                  padding: '4px 12px',
+                  fontSize: '12px',
+                  fontFamily: 'Plus Jakarta Sans',
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  transition: 'all 300ms ease'
+                }}
+              >
+                Set up profile →
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -126,7 +146,15 @@ function NavLink({ to, label }) {
 
 function AnimatedRoutes({ onProfileUpdate }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isLanding = location.pathname === '/';
+
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('meetingmind_profile');
+    if (!savedProfile && location.pathname !== '/profile') {
+      navigate('/profile');
+    }
+  }, [navigate, location.pathname]);
 
   return (
     <main style={{ paddingTop: isLanding ? '0' : '58px' }}>

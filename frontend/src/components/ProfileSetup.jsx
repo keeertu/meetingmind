@@ -92,6 +92,12 @@ function ProfileSetup({ onProfileUpdate }) {
       });
       setSaved(true);
       
+      // Save to localStorage
+      localStorage.setItem('meetingmind_profile', JSON.stringify({
+        name: profile.name,
+        role: profile.role
+      }));
+      
       // Update navbar profile
       if (onProfileUpdate) {
         onProfileUpdate();
