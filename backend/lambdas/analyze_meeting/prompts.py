@@ -28,7 +28,15 @@ Title: {title}
 Duration: {duration}
 
 Your tasks:
-1. Score relevance 1-10 for THIS specific person based on their role and projects. Be honest — if this meeting has nothing to do with them, score it LOW.
+1. relevance_score: INTEGER from 1-10. IMPORTANT: You MUST calculate this mathematically:
+- Count how many agenda items/topics in this meeting directly involve the user's role or projects
+- Divide by total number of agenda items
+- Multiply by 10 and round to nearest integer
+- If user's role is not mentioned at all: score 1-3
+- If user's role is mentioned briefly: score 4-6  
+- If user's role is central to >50% of meeting: score 7-8
+- ONLY score 9-10 if user is the meeting organizer/leader AND their domain covers >80% of agenda items
+- Default score when uncertain: 5
 
 2. Extract only decisions that directly impact their role or projects. Skip everything else.
 
@@ -51,7 +59,7 @@ A frontend engineer and a product manager must get completely different outputs 
 
 Return ONLY valid JSON matching this exact schema:
 {{
-  "relevance": "HIGH" | "MEDIUM" | "LOW",
+  "relevance": "HIGH" | "MEDIUM" | "LOW",  // HIGH: relevance_score >= 8, MEDIUM: relevance_score 5-7, LOW: relevance_score <= 4
   "relevance_score": 1-10,
   "why_this_matters": "one specific sentence",
   "decisions": [

@@ -2,26 +2,84 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'https://mexwfgzor2.execute-api
 
 const getUserId = () => {
   let userId = localStorage.getItem('meetingmind_user_id');
-  if (!userId) {
-    userId = 'user_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('meetingmind_user_id', userId);
+  
+  // Handle cases where localStorage returns null, "null", or "undefined" as strings
+  if (!userId || userId === 'null' || userId === 'undefined' || userId.trim() === '') {
+    // Try to get from sessionStorage as backup
+    userId = sessionStorage.getItem('meetingmind_user_id');
+    
+    if (!userId || userId === 'null' || userId === 'undefined' || userId.trim() === '') {
+      // Generate new userId
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      console.log('Generated new userId:', userId);
+      
+      // Store in both localStorage and sessionStorage
+      try {
+        localStorage.setItem('meetingmind_user_id', userId);
+        sessionStorage.setItem('meetingmind_user_id', userId);
+      } catch (e) {
+        console.warn('Failed to save userId to storage:', e);
+      }
+    } else {
+      console.log('Recovered userId from sessionStorage:', userId);
+      // Restore to localStorage
+      try {
+        localStorage.setItem('meetingmind_user_id', userId);
+      } catch (e) {
+        console.warn('Failed to restore userId to localStorage:', e);
+      }
+    }
+  } else {
+    console.log('Using existing userId:', userId);
+    // Ensure it's also in sessionStorage
+    try {
+      sessionStorage.setItem('meetingmind_user_id', userId);
+    } catch (e) {
+      console.warn('Failed to backup userId to sessionStorage:', e);
+    }
   }
+  
   return userId;
 };
 
-export const USER_ID = getUserId();
+// Don't export USER_ID as a constant - call getUserId() each time to ensure it's fresh
+export { getUserId };
+
+// Helper function to manually set userId (for recovery purposes)
+export const setUserId = (userId) => {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Invalid userId provided');
+  }
+  
+  try {
+    localStorage.setItem('meetingmind_user_id', userId);
+    sessionStorage.setItem('meetingmind_user_id', userId);
+    console.log('Manually set userId:', userId);
+    return true;
+  } catch (e) {
+    console.error('Failed to set userId:', e);
+    return false;
+  }
+};
+
+// Helper function to get current userId without generating a new one
+export const getCurrentUserId = () => {
+  return localStorage.getItem('meetingmind_user_id') || sessionStorage.getItem('meetingmind_user_id') || null;
+};
 
 export const api = {
   // Profile
   async getProfile() {
-    const res = await fetch(`${BASE_URL}/profile/${USER_ID}`);
+    const userId = getUserId();
+    const res = await fetch(`${BASE_URL}/profile/${userId}`);
     if (!res.ok) throw new Error('Profile not found');
     return res.json();
   },
 
   async saveProfile(data) {
+    const userId = getUserId();
     console.log("API saveProfile called with:", data);
-    const payload = { userId: USER_ID, ...data };
+    const payload = { userId, ...data };
     console.log("Sending payload:", payload);
     
     const res = await fetch(`${BASE_URL}/profile`, {
@@ -41,28 +99,41 @@ export const api = {
 
   // Meetings
   async getMeetings() {
-    const res = await fetch(`${BASE_URL}/meetings?userId=${USER_ID}`);
-    if (!res.ok) throw new Error('Failed to fetch meetings');
+    const userId = getUserId();
+    console.log('Fetching meetings for userId:', userId);
+    const res = await fetch(`${BASE_URL}/meetings?userId=${userId}`);
+    if (!res.ok) {
+      console.error('Failed to fetch meetings. Status:', res.status);
+      throw new Error('Failed to fetch meetings');
+    }
     const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    console.log('Received meetings data:', data);
+    
+    // Handle both array response and object with meetings property
+    const meetings = Array.isArray(data) ? data : (data.meetings || []);
+    console.log('Processed meetings:', meetings);
+    return meetings;
   },
 
   async getMeeting(meetingId) {
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}?userId=${USER_ID}`);
+    const userId = getUserId();
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}?userId=${userId}`);
     if (!res.ok) throw new Error('Meeting not found');
     return res.json();
   },
 
   async getMeetingStatus(meetingId) {
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status?userId=${USER_ID}`);
+    const userId = getUserId();
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status?userId=${userId}`);
     if (!res.ok) throw new Error('Failed to get status');
     return res.json();
   },
 
   async uploadMeeting(file, title) {
+    const userId = getUserId();
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('userId', USER_ID);
+    formData.append('userId', userId);
     formData.append('title', title || file.name);
 
     const res = await fetch(`${BASE_URL}/meetings/upload`, {
@@ -74,12 +145,13 @@ export const api = {
   },
 
   async uploadMeetingPresigned(file, title) {
+    const userId = getUserId();
     // Step 1: Get presigned URL from backend
     const urlRes = await fetch(`${BASE_URL}/meetings/upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId,
         filename: file.name,
         title: title || file.name
       })
@@ -108,7 +180,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId,
         meetingId,
         s3Key,
         title: title || file.name
@@ -124,21 +196,23 @@ export const api = {
   },
 
   async analyzeMeeting(meetingId) {
+    const userId = getUserId();
     const res = await fetch(`${BASE_URL}/meetings/${meetingId}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID })
+      body: JSON.stringify({ userId })
     });
     if (!res.ok) throw new Error('Analysis failed');
     return res.json();
   },
 
   async chatWithMeeting(meetingId, question) {
+    const userId = getUserId();
     const res = await fetch(`${BASE_URL}/meetings/${meetingId}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId,
         question
       })
     });

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight, Plus, Inbox } from 'lucide-react';
-import api from '../api/client';
+import { ChevronRight, Plus, Inbox, AlertCircle } from 'lucide-react';
+import api, { getCurrentUserId } from '../api/client';
 import PriorityBadge from './PriorityBadge';
 
 function Dashboard() {
@@ -10,6 +10,7 @@ function Dashboard() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,12 +18,26 @@ function Dashboard() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Get current userId for debugging
+        const userId = getCurrentUserId();
+        setCurrentUserId(userId);
+        console.log('Dashboard loading with userId:', userId);
+        
         const [profileData, meetingsData] = await Promise.all([
           api.getProfile().catch(() => null),
           api.getMeetings()
         ]);
         setProfile(profileData);
         setMeetings(Array.isArray(meetingsData) ? meetingsData : []);
+        
+        // Log for debugging
+        console.log('Dashboard loaded:', { 
+          userId, 
+          profileExists: !!profileData, 
+          meetingsCount: Array.isArray(meetingsData) ? meetingsData.length : 0 
+        });
+        
       } catch (err) {
         console.error('Error loading dashboard:', err);
         setError(err.message);
@@ -176,6 +191,29 @@ function Dashboard() {
             >
               Upload your first recording →
             </Link>
+            
+            {/* Debug info for troubleshooting */}
+            {currentUserId && (
+              <div style={{
+                marginTop: '24px',
+                padding: '12px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                fontFamily: 'JetBrains Mono'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <AlertCircle size={12} />
+                  Debug Info
+                </div>
+                <div>User ID: {currentUserId}</div>
+                <div style={{ fontSize: '10px', marginTop: '4px', color: 'var(--text-muted)' }}>
+                  If you had meetings before but don't see them, your browser storage may have been cleared.
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <>
