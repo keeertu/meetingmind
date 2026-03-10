@@ -300,7 +300,7 @@ Resources:
     Properties:
       StageName: prod
       Cors:
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowMethods: "'OPTIONS,POST,GET,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
