@@ -13,8 +13,12 @@ def lambda_handler(event, context):
         user_id = event.get('queryStringParameters', {}).get('userId')
         
         if not user_id:
-            logger.warning("Missing userId in request, falling back to demo-user")
-            user_id = 'demo-user'
+            logger.warning("Missing userId in request")
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Missing userId parameter'})
+            }
         meetings = list_user_meetings(user_id)
         
         # Return preview data only (not full transcript)

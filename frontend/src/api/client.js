@@ -48,7 +48,7 @@ export const api = {
   },
 
   async getMeeting(meetingId) {
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}`);
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}?userId=${USER_ID}`);
     if (!res.ok) throw new Error('Meeting not found');
     return res.json();
   },

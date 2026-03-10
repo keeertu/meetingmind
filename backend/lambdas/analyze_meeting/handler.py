@@ -54,7 +54,10 @@ def lambda_handler(event, context):
             return error_response('Meeting not found', 404)
         
         # Get user profile
-        user_id = meeting.get('userId', 'demo-user')
+        user_id = meeting.get('userId')
+        if not user_id:
+            logger.error(f"Meeting {meeting_id} has no userId field")
+            return error_response('Meeting has no associated user', 400)
         try:
             profile = get_profile(user_id)
         except Exception as e:
@@ -256,7 +259,9 @@ def lambda_handler(event, context):
 def handle_analyze_text(body):
     """Handle analyze-text test endpoint"""
     try:
-        user_id = body.get('userId', 'demo-user')
+        user_id = body.get('userId')
+        if not user_id:
+            return error_response('Missing userId in request body', 400)
         transcript_text = body.get('transcript_text', '')
         title = body.get('title', 'Test Meeting')
         

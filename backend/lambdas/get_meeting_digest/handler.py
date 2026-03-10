@@ -14,7 +14,15 @@ def lambda_handler(event, context):
         
         # User Scoping Prep
         query_params = event.get('queryStringParameters') or {}
-        user_id = query_params.get('userId', 'demo-user')
+        user_id = query_params.get('userId')
+        
+        if not user_id:
+            logger.warning("Missing userId in request")
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Missing userId parameter'})
+            }
             
         if not meeting_id:
             logger.warning("Missing meetingId in request")

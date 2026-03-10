@@ -22,7 +22,14 @@ def lambda_handler(event, context):
         body = json.loads(event.get('body', '{}'))
         meeting_id = event.get('pathParameters', {}).get('meetingId')
         question = body.get('question', '').strip()
-        user_id = body.get('userId', 'demo-user')
+        user_id = body.get('userId')
+        
+        if not user_id:
+            return {
+                'statusCode': 400,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Missing userId in request body'})
+            }
         
         # Validate question is not empty
         if not question:
