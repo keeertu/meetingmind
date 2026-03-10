@@ -1,0 +1,77 @@
+{
+  "meetingId": "demo",
+  "title": "Sprint Planning Q1 - Week 8",
+  "uploadedAt": "2026-03-01T14:30:00Z",
+  "duration": "00:45:32",
+  "status": "COMPLETE",
+  "transcriptRaw": "Welcome everyone to Sprint Planning for Q1 Week 8. Let's dive right in. First item on the agenda is the payments dashboard redesign. The API integration deadline has been moved up by two weeks due to the merchant onboarding push. This means frontend needs to have the new payment components ready by March 15th instead of March 30th. Alex, I know this impacts your sprint timeline significantly. The design system tokens are ready and Sarah will share them in Slack after this meeting. We've decided to use the new design system for all payment-related UI components to maintain consistency. Second item: checkout redesign. We're adding support for Apple Pay and Google Pay in Q1. This is now a high priority feature based on user research showing 40% of our mobile users prefer digital wallets. The backend API is ready, so this is purely a frontend integration task. Mike will review the API documentation and flag any breaking changes by end of week. Third: OKR check-in. We're at 65% completion on our Q1 objectives. The user research team has completed 12 out of 15 planned sessions. Priya, can you share the insights deck by Friday? We need those findings to inform the Q2 roadmap. The product team is also requesting that we prioritize the analytics dashboard for the next sprint. This will help us track conversion metrics more effectively. Action items: Alex will update the component library by end of week and coordinate with the design team on the new tokens. Sarah will conduct user testing on the new checkout flow starting Monday. Mike will review API docs and create a migration guide. Priya will compile user research insights and present to leadership on Friday. Any questions? Great, let's get to work.",
+  "transcriptWithTimestamps": [],
+  "digest": {
+    "relevance": "HIGH",
+    "relevance_score": 9,
+    "why_this_matters": "As the frontend engineer on payments-dashboard, the API deadline change discussed at 02:15 directly affects your sprint timeline, requiring you to deliver components two weeks earlier than planned.",
+    "decisions": [
+      {
+        "summary": "API integration deadline moved up by 2 weeks to March 15th",
+        "timestamp": "02:15",
+        "affects_user": true
+      },
+      {
+        "summary": "New design system tokens to be used for all payment UI components",
+        "timestamp": "03:45",
+        "affects_user": true
+      },
+      {
+        "summary": "Apple Pay and Google Pay support now high priority for Q1",
+        "timestamp": "05:30",
+        "affects_user": true
+      }
+    ],
+    "action_items": [
+      {
+        "task": "Update component library with new design system tokens",
+        "assigned_to": "Alex",
+        "timestamp": "08:20",
+        "involves_user": true
+      },
+      {
+        "task": "Coordinate with design team on token implementation",
+        "assigned_to": "Alex",
+        "timestamp": "08:25",
+        "involves_user": true
+      },
+      {
+        "task": "Review API documentation and flag breaking changes",
+        "assigned_to": "Mike",
+        "timestamp": "06:45",
+        "involves_user": false
+      }
+    ],
+    "quick_scan": [
+      "Payment component deadline moved up 2 weeks to March 15th",
+      "New design system tokens ready for payment UI",
+      "Apple Pay and Google Pay integration now Q1 priority",
+      "Component library update due by end of week",
+      "Backend API ready, frontend integration needed"
+    ],
+    "standard_briefing": "This sprint planning session covered three major items affecting your work on the payments dashboard. The most critical update is the accelerated timeline for API integration, now due March 15th instead of March 30th, driven by the merchant onboarding initiative.\n\nThe decision to adopt the new design system for all payment components means you'll need to integrate the design tokens Sarah is sharing. This affects your current sprint work on the payments dashboard and checkout redesign. Additionally, Apple Pay and Google Pay support has been elevated to high priority based on user research showing 40% of mobile users prefer digital wallets.\n\nYour immediate action items are updating the component library by end of week and coordinating with the design team on token implementation. Mike will provide API documentation review to help identify any breaking changes that might affect your integration work.",
+    "key_moments": [
+      {
+        "timestamp": "02:15",
+        "description": "API deadline change announcement",
+        "relevance_to_user": "Directly impacts your sprint timeline and delivery schedule"
+      },
+      {
+        "timestamp": "03:45",
+        "description": "Design system decision",
+        "relevance_to_user": "Requires refactoring payment UI components with new tokens"
+      },
+      {
+        "timestamp": "05:30",
+        "description": "Digital wallet priority elevation",
+        "relevance_to_user": "New frontend integration work for your checkout redesign project"
+      }
+    ],
+    "error": false
+  }
+}

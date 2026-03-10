@@ -1,0 +1,313 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: MeetingMind - Relevance-aware meeting intelligence system
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 300
+    MemorySize: 512
+    Environment:
+      Variables:
+        PROFILES_TABLE: !Ref ProfilesTable
+        MEETINGS_TABLE: !Ref MeetingsTable
+        RECORDINGS_BUCKET: !Ref RecordingsBucket
+        AWS_REGION_NAME: !Ref AWS::Region
+        BEDROCK_MODEL_ID: 'us.anthropic.claude-sonnet-4-20250514-v1:0'
+
+Resources:
+  # S3 Bucket for recordings and embeddings
+  RecordingsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub meetingmind-recordings-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3600
+
+  # DynamoDB Tables
+  ProfilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: meetingmind-profiles
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  MeetingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: meetingmind-meetings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: meetingId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: uploadedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: meetingId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-uploadedAt-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: uploadedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # Lambda Layer for numpy
+  NumpyLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: numpy-layer
+      Description: NumPy for cosine similarity
+      ContentUri: ../layers/numpy-layer/
+      CompatibleRuntimes:
+        - python3.11
+    Metadata:
+      BuildMethod: python3.11
+
+  # Lambda Functions
+  UploadMeetingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-upload-meeting
+      CodeUri: ../lambdas/upload_meeting/
+      Handler: handler.lambda_handler
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref RecordingsBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeetingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - transcribe:StartTranscriptionJob
+              Resource: "*"
+      Events:
+        UploadApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/upload
+            Method: POST
+        UploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/upload-url
+            Method: POST
+        ProcessMeeting:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/process
+            Method: POST
+
+  PollTranscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-poll-transcription
+      CodeUri: ../lambdas/poll_transcription/
+      Handler: handler.lambda_handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref RecordingsBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeetingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - transcribe:GetTranscriptionJob
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt AnalyzeMeetingFunction.Arn
+      Events:
+        PollApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/status
+            Method: GET
+
+  AnalyzeMeetingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-analyze-meeting
+      CodeUri: ../lambdas/analyze_meeting/
+      Handler: handler.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Layers:
+        - !Ref NumpyLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeetingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+        - S3CrudPolicy:
+            BucketName: !Ref RecordingsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub arn:aws:bedrock:*::foundation-model/anthropic.claude-*
+                - !Sub arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v1
+                - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+      Events:
+        AnalyzeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/analyze
+            Method: POST
+        AnalyzeTextApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/analyze-text
+            Method: POST
+
+  SaveProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-save-profile
+      CodeUri: ../lambdas/save_profile/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        SaveProfileApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /profile
+            Method: POST
+
+  GetProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-get-profile
+      CodeUri: ../lambdas/get_profile/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        GetProfileApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /profile/{userId}
+            Method: GET
+
+  GetMeetingDigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-get-meeting-digest
+      CodeUri: ../lambdas/get_meeting_digest/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref MeetingsTable
+      Events:
+        GetMeetingApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}
+            Method: GET
+
+  ListMeetingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-list-meetings
+      CodeUri: ../lambdas/list_meetings/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref MeetingsTable
+      Events:
+        ListMeetingsApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings
+            Method: GET
+
+  ChatMeetingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-chat-meeting
+      CodeUri: ../lambdas/chat_meeting/
+      Handler: handler.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Layers:
+        - !Ref NumpyLayer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref MeetingsTable
+        - S3ReadPolicy:
+            BucketName: !Ref RecordingsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub arn:aws:bedrock:*::foundation-model/anthropic.claude-*
+                - !Sub arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v1
+                - !Sub arn:aws:bedrock:*::foundation-model/amazon.nova-pro-v1:0
+                - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0
+                - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        ChatMeeting:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/chat
+            Method: POST
+
+  # API Gateway
+  MeetingMindApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${MeetingMindApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  RecordingsBucketName:
+    Description: S3 bucket for recordings
+    Value: !Ref RecordingsBucket

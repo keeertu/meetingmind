@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,300&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds - dark aurora-inspired */
+  --bg: #0D1B2A;
+  --bg-subtle: #0A1520;
+  --bg-surface: #112236;
+  --bg-elevated: #162840;
+  --bg-overlay: rgba(13, 27, 42, 0.88);
+  
+  /* Borders - subtle teal glow */
+  --border: rgba(45, 190, 170, 0.15);
+  --border-bright: rgba(45, 190, 170, 0.3);
+  
+  /* Text */
+  --text: #E8F4F0;
+  --text-secondary: #8BBAA8;
+  --text-muted: #4A6B5E;
+  
+  /* Accent - aurora teal-green */
+  --accent: #2DBEA8;
+  --accent-hover: #35D4BC;
+  --accent-subtle: rgba(45, 190, 168, 0.1);
+  --accent-glow: rgba(45, 190, 168, 0.25);
+  
+  /* Secondary accent - aurora purple */
+  --accent-purple: #7B5EA7;
+  --accent-purple-subtle: rgba(123, 94, 167, 0.15);
+  
+  /* Priority */
+  --high: #FF6B6B;
+  --high-bg: rgba(255, 107, 107, 0.12);
+  --high-border: rgba(255, 107, 107, 0.3);
+  --medium: #FFB347;
+  --medium-bg: rgba(255, 179, 71, 0.12);
+  --medium-border: rgba(255, 179, 71, 0.3);
+  --low: #2DBEA8;
+  --low-bg: rgba(45, 190, 168, 0.12);
+  --low-border: rgba(45, 190, 168, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fraunces', serif;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-subtle);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(45, 190, 168, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(45, 190, 168, 0.5);
+}
+
+::selection {
+  background: var(--accent-subtle);
+  color: var(--text);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+@layer components {
+  .app-container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0D1B2A;
+    border-radius: 12px;
+    padding: 12px 28px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    border: none;
+    cursor: pointer;
+    transition: all 200ms ease;
+    box-shadow: 0 4px 16px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .btn-secondary:hover {
+    border-color: rgba(45, 190, 168, 0.4);
+    color: var(--text);
+  }
+
+  .input-standard {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    transition: all 150ms ease;
+  }
+
+  .input-standard:focus {
+    outline: none;
+    border-color: rgba(45, 190, 168, 0.6);
+    box-shadow: 0 0 0 3px var(--accent-subtle);
+  }
+
+  .input-standard::placeholder {
+    color: var(--text-muted);
+  }
+
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    transition: all 150ms ease;
+  }
+
+  .card:hover {
+    background: var(--bg-elevated);
+    border-color: rgba(45, 190, 168, 0.4);
+    box-shadow: 0 4px 20px rgba(45, 190, 168, 0.08);
+  }
+}

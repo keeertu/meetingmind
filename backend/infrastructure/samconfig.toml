@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "meetingmind"
+resolve_s3 = true
+s3_prefix = "meetingmind"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = ""
+confirm_changeset = false
+
+[default.build.parameters]
+cached = true
+parallel = true
