@@ -536,14 +536,30 @@ function LandingPage() {
             flexWrap: 'wrap',
             gap: '16px'
           }}>
-            <p style={{
-              fontFamily: 'Fraunces',
-              fontWeight: 600,
-              fontSize: '14px',
-              color: 'var(--text)'
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
-              MeetingMind
-            </p>
+              <img 
+                src="/logo.svg" 
+                alt="MeetingMind Logo" 
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  objectFit: 'contain'
+                }}
+              />
+              <p style={{
+                fontFamily: 'Fraunces',
+                fontWeight: 600,
+                fontSize: '14px',
+                color: 'var(--text)',
+                margin: 0
+              }}>
+                MeetingMind
+              </p>
+            </div>
             <p style={{
               fontFamily: 'Plus Jakarta Sans',
               fontWeight: 400,
