@@ -6,8 +6,8 @@ import api from '../api/client';
 
 function ProfileSetup({ onProfileUpdate }) {
   const [profile, setProfile] = useState({
-    name: '',
-    role: '',
+    name: 'Keerat Khanuja',
+    role: 'AI Engineer / Data Scientist',
     projects: [],
     keywords: []
   });
@@ -155,7 +155,7 @@ function ProfileSetup({ onProfileUpdate }) {
                 name="name"
                 value={profile.name}
                 onChange={handleChange}
-                placeholder="Keerat Singh"
+                placeholder="Keerat Khanuja"
                 className="input-standard"
                 required
               />
@@ -177,7 +177,7 @@ function ProfileSetup({ onProfileUpdate }) {
                 name="role"
                 value={profile.role}
                 onChange={handleChange}
-                placeholder="Data Scientist"
+                placeholder="AI Engineer / Data Scientist"
                 className="input-standard"
                 required
               />

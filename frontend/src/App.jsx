@@ -61,9 +61,6 @@ function Navigation({ userProfile }) {
           <Link 
             to="/" 
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
               fontFamily: 'Fraunces',
               fontWeight: 700,
               fontSize: '18px',
@@ -72,15 +69,6 @@ function Navigation({ userProfile }) {
               transition: 'color 300ms ease'
             }}
           >
-            <img 
-              src="/logo.svg" 
-              alt="MeetingMind Logo" 
-              style={{
-                width: '32px',
-                height: '32px',
-                objectFit: 'contain'
-              }}
-            />
             MeetingMind
           </Link>
 
