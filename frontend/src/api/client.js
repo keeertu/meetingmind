@@ -20,12 +20,22 @@ export const api = {
   },
 
   async saveProfile(data) {
+    console.log("API saveProfile called with:", data);
+    const payload = { userId: USER_ID, ...data };
+    console.log("Sending payload:", payload);
+    
     const res = await fetch(`${BASE_URL}/profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID, ...data })
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Failed to save profile');
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Profile save failed:", errorText);
+      throw new Error(errorText || 'Failed to save profile');
+    }
+    
     return res.json();
   },
 

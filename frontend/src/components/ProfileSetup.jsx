@@ -83,13 +83,18 @@ function ProfileSetup({ onProfileUpdate }) {
     setSaving(true);
     setError(null);
     
+    // Prepare the payload with correct structure
+    const payload = {
+      name: profile.name,
+      role: profile.role,
+      projects: projectTags,
+      keywords: keywordTags
+    };
+    
+    console.log("Saving profile:", payload);
+    
     try {
-      await api.saveProfile({
-        name: profile.name,
-        role: profile.role,
-        projects: projectTags,
-        keywords: keywordTags
-      });
+      await api.saveProfile(payload);
       setSaved(true);
       
       // Save to localStorage
@@ -108,7 +113,7 @@ function ProfileSetup({ onProfileUpdate }) {
       }, 1500);
     } catch (err) {
       console.error('Failed to save profile:', err);
-      setError('Failed to save profile');
+      setError(`Failed to save profile — check console`);
       setSaved(false);
     } finally {
       setSaving(false);
