@@ -211,6 +211,7 @@ def lambda_handler(event, context):
             }
         
         # Update meeting with digest, chunks, and time saved metrics
+        analysis_successful = False
         try:
             update_data = {
                 'digest': digest,
@@ -219,6 +220,8 @@ def lambda_handler(event, context):
             update_data.update(time_metrics)
             
             update_meeting_status(meeting_id, 'COMPLETE', update_data)
+            analysis_successful = True
+            logger.info(f"Successfully updated meeting {meeting_id} status to COMPLETE")
         except Exception as e:
             logger.error(f"Failed to update meeting status to COMPLETE: {str(e)}")
             # Still return success since analysis completed
@@ -239,9 +242,23 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Unexpected error during analysis: {str(e)}", exc_info=True)
         
-        # Guarantee state resolves cleanly
+        # Only set to FAILED if analysis actually failed (not if we just had issues after successful completion)
         if meeting_id:
             try:
+                # Check if we already successfully completed the analysis
+                current_meeting = get_meeting(meeting_id)
+                if current_meeting and current_meeting.get('status') == 'COMPLETE':
+                    logger.info(f"Meeting {meeting_id} already marked as COMPLETE, not overriding to FAILED")
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({
+                            'meetingId': meeting_id,
+                            'status': 'COMPLETE',
+                            'digest': current_meeting.get('digest', {})
+                        })
+                    }
+                
                 # Still save a fallback digest so frontend can fail somewhat gracefully
                 fallback_digest = FALLBACK_DIGEST.copy()
                 fallback_digest['open_questions'] = []

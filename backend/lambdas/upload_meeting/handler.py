@@ -67,9 +67,13 @@ def check_duplicate_meeting(user_id, filename):
         # Get all meetings for this user
         meetings = list_user_meetings(user_id)
         
-        # Check for duplicates (exclude FAILED meetings)
+        # Check for duplicates (exclude FAILED meetings unless they have a digest)
         for meeting in meetings:
-            if meeting.get('status') == 'FAILED':
+            meeting_status = meeting.get('status')
+            has_digest = 'digest' in meeting and meeting['digest']
+            
+            # Skip truly failed meetings (FAILED status and no digest)
+            if meeting_status == 'FAILED' and not has_digest:
                 continue
                 
             meeting_title = meeting.get('title', '')
