@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Info } from 'lucide-react';
 import api from '../api/client';
 import PriorityBadge from './PriorityBadge';
 import TranscriptViewer from './TranscriptViewer';
@@ -9,6 +9,7 @@ import sampleDigest from '../demo/sampleDigest.json';
 
 function DigestView() {
   const { id } = useParams();
+  const location = useLocation();
   const [meeting, setMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,10 +18,21 @@ function DigestView() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [showMessage, setShowMessage] = useState(false);
+
+  // Check for duplicate message from navigation state
+  const duplicateMessage = location.state?.message;
 
   useEffect(() => {
     loadMeeting();
-  }, [id]);
+    
+    // Show duplicate message if present
+    if (duplicateMessage) {
+      setShowMessage(true);
+      // Auto-hide after 5 seconds
+      setTimeout(() => setShowMessage(false), 5000);
+    }
+  }, [id, duplicateMessage]);
 
   const loadMeeting = async () => {
     try {
@@ -169,6 +181,54 @@ function DigestView() {
             {meeting.duration && ` · ${meeting.duration}`}
           </div>
         </div>
+
+        {/* Duplicate Message */}
+        <AnimatePresence>
+          {showMessage && duplicateMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              style={{
+                background: 'rgba(45, 190, 168, 0.1)',
+                border: '1px solid rgba(45, 190, 168, 0.3)',
+                borderRadius: '12px',
+                padding: '16px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <Info size={18} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <span style={{
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: '14px',
+                color: 'var(--text)',
+                fontWeight: 500
+              }}>
+                {duplicateMessage}
+              </span>
+              <button
+                onClick={() => setShowMessage(false)}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  fontSize: '12px'
+                }}
+                onMouseEnter={(e) => e.target.style.color = 'var(--text)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Time Saved Banner */}
         {meeting.timeSavedPercent && meeting.digestReadingSeconds && meeting.meetingDurationSeconds && (

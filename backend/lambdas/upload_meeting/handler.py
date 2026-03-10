@@ -13,7 +13,7 @@ sys.path.insert(0, '/opt/python')
 import boto3
 # TEMPORARY - revert to Transcribe later
 import requests as http_requests
-from db import save_meeting
+from db import save_meeting, list_user_meetings
 from s3_utils import upload_file
 from utils import generate_meeting_id, get_logger
 
@@ -58,6 +58,33 @@ def start_assemblyai_job(s3_key):
     return result['id']
 
 
+def check_duplicate_meeting(user_id, filename):
+    """Check if a meeting with the same filename already exists for this user"""
+    try:
+        # Get filename without extension for comparison
+        title_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
+        
+        # Get all meetings for this user
+        meetings = list_user_meetings(user_id)
+        
+        # Check for duplicates (exclude FAILED meetings)
+        for meeting in meetings:
+            if meeting.get('status') == 'FAILED':
+                continue
+                
+            meeting_title = meeting.get('title', '')
+            # Compare titles without extensions
+            meeting_title_clean = meeting_title.rsplit('.', 1)[0] if '.' in meeting_title else meeting_title
+            
+            if meeting_title_clean.lower() == title_without_ext.lower():
+                return meeting.get('meetingId')
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error checking for duplicate meetings: {str(e)}")
+        return None
+
+
 def handle_presigned_url(event):
     try:
         body = event.get('body', '{}')
@@ -80,6 +107,25 @@ def handle_presigned_url(event):
                 'statusCode': 400,
                 'headers': {'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'error': 'title is required'})
+            }
+        
+        # Check for duplicate meetings
+        duplicate_meeting_id = check_duplicate_meeting(user_id, filename)
+        if duplicate_meeting_id:
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+                },
+                'body': json.dumps({
+                    'meetingId': duplicate_meeting_id,
+                    'presignedUrl': None,
+                    'duplicate': True,
+                    'message': 'Meeting already exists'
+                })
             }
         
         # Sanitize filename

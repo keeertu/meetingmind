@@ -58,6 +58,16 @@ function UploadMeeting() {
         // Small files use direct upload
         uploadResult = await api.uploadMeeting(file, title);
       }
+      
+      // Check if this is a duplicate
+      if (uploadResult.duplicate) {
+        // Redirect to existing meeting with message
+        navigate(`/meeting/${uploadResult.meetingId}`, {
+          state: { message: 'This meeting was already analyzed' }
+        });
+        return;
+      }
+      
       const id = uploadResult.meetingId;
       setMeetingId(id);
 
