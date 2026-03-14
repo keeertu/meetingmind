@@ -2,7 +2,7 @@ import json
 import os
 
 from db import get_profile
-from utils import get_logger
+from utils import get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -23,21 +23,19 @@ def lambda_handler(event, context):
         }
     
     try:
-        user_id = event.get('pathParameters', {}).get('userId')
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
         if not user_id:
-            user_id = event.get('queryStringParameters', {}).get('userId')
-            
-        if not user_id:
-            logger.warning("Missing userId in request")
+            logger.warning("Missing or invalid authentication token")
             return {
-                'statusCode': 400,
+                'statusCode': 401,
                 'headers': {
                     'Content-Type': 'application/json', 
                     'Access-Control-Allow-Origin': '*',
                     'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
                     'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
                 },
-                'body': json.dumps({'error': 'Missing userId'})
+                'body': json.dumps({'error': 'Unauthorized'})
             }
         
         profile = get_profile(user_id)

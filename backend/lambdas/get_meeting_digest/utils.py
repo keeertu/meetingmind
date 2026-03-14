@@ -173,3 +173,21 @@ def cosine_similarity(vec_a, vec_b):
         mag_a = sum(a * a for a in vec_a) ** 0.5
         mag_b = sum(b * b for b in vec_b) ** 0.5
         return dot_product / (mag_a * mag_b) if mag_a and mag_b else 0.0
+
+
+def get_user_id_from_token(event):
+    """Extract user ID from Cognito JWT token claims in API Gateway event"""
+    try:
+        # Get user ID directly from API Gateway authorizer claims
+        claims = event.get("requestContext", {}).get("authorizer", {}).get("claims", {})
+        user_id = claims.get("sub")
+        
+        if not user_id:
+            return None
+            
+        return user_id
+        
+    except Exception as e:
+        logger = get_logger(__name__)
+        logger.error(f"Error extracting user ID from claims: {str(e)}")
+        return None

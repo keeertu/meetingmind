@@ -2,7 +2,7 @@ import json
 import os
 
 from db import get_meeting
-from utils import get_logger
+from utils import get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -12,16 +12,14 @@ def lambda_handler(event, context):
     try:
         meeting_id = event.get('pathParameters', {}).get('meetingId')
         
-        # User Scoping Prep
-        query_params = event.get('queryStringParameters') or {}
-        user_id = query_params.get('userId')
-        
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
         if not user_id:
-            logger.warning("Missing userId in request")
+            logger.warning("Missing or invalid authentication token")
             return {
-                'statusCode': 400,
+                'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Missing userId parameter'})
+                'body': json.dumps({'error': 'Unauthorized'})
             }
             
         if not meeting_id:

@@ -9,7 +9,7 @@ from db import get_meeting, get_profile, update_meeting_status
 from bedrock_utils import invoke_claude, parse_claude_json
 from prompts import SYSTEM_PROMPT, build_user_prompt, FALLBACK_DIGEST
 from rag import chunk_and_embed_transcript, embed_profile, retrieve_relevant_chunks, save_embeddings_to_s3, load_embeddings_from_s3
-from utils import get_logger
+from utils import get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -21,6 +21,12 @@ def lambda_handler(event, context):
         # Check if this is a direct invocation (from poll_transcription) or API call
         if 'body' in event and event.get('httpMethod'):
             # API call - could be analyze-text endpoint
+            # Get user ID from Cognito JWT token for authorization
+            authenticated_user_id = get_user_id_from_token(event)
+            if not authenticated_user_id:
+                logger.warning("Missing or invalid authentication token")
+                return error_response('Unauthorized', 401)
+                
             try:
                 body = json.loads(event['body'])
             except json.JSONDecodeError as e:
@@ -39,6 +45,7 @@ def lambda_handler(event, context):
         else:
             # Direct invocation from poll_transcription
             meeting_id = event.get('meetingId')
+            authenticated_user_id = None  # No auth check for internal calls
             if not meeting_id:
                 logger.error("No meetingId provided in direct invocation")
                 return error_response('Missing meetingId', 400)
@@ -52,6 +59,11 @@ def lambda_handler(event, context):
             
         if not meeting:
             return error_response('Meeting not found', 404)
+        
+        # For API calls, verify the authenticated user owns this meeting
+        if authenticated_user_id and meeting.get('userId') != authenticated_user_id:
+            logger.warning(f"Unauthorized access attempt by {authenticated_user_id} for meeting {meeting_id}")
+            return error_response('Forbidden', 403)
         
         # Get user profile
         user_id = meeting.get('userId')

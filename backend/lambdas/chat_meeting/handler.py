@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
 from db import get_meeting
 from bedrock_utils import invoke_claude, get_embedding
 from s3_utils import get_json
-from utils import cosine_similarity, get_logger
+from utils import cosine_similarity, get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -22,13 +22,15 @@ def lambda_handler(event, context):
         body = json.loads(event.get('body', '{}'))
         meeting_id = event.get('pathParameters', {}).get('meetingId')
         question = body.get('question', '').strip()
-        user_id = body.get('userId')
         
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
         if not user_id:
+            logger.warning("Missing or invalid authentication token")
             return {
-                'statusCode': 400,
+                'statusCode': 401,
                 'headers': {'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Missing userId in request body'})
+                'body': json.dumps({'error': 'Unauthorized'})
             }
         
         # Validate question is not empty

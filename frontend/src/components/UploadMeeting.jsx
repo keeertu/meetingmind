@@ -5,103 +5,86 @@ import { Upload, X, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 import UploadProgress from './UploadProgress';
 
+const MAX_MB = 100;
+
 function UploadMeeting() {
-  const [file, setFile] = useState(null);
-  const [title, setTitle] = useState('');
+  const [file,       setFile]       = useState(null);
+  const [title,      setTitle]      = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [step, setStep] = useState(0); // 0=idle, 1=uploading, 2=transcribing, 3=analyzing, 4=ready, -1=error
-  const [meetingId, setMeetingId] = useState(null);
-  const [error, setError] = useState(null);
+  const [uploading,  setUploading]  = useState(false);
+  const [step,       setStep]       = useState(0); // 0=idle 1=uploading 2=transcribing 3=analyzing 4=ready -1=error
+  const [error,      setError]      = useState(null);
   const navigate = useNavigate();
 
-  const handleFileSelect = (e) => {
-    const selectedFile = e.target.files[0];
-    validateAndSetFile(selectedFile);
+  /* ── File handling ──────────────────────────────────────────────────────── */
+  const validateAndSetFile = (f) => {
+    if (!f) return;
+    if (f.size > MAX_MB * 1024 * 1024) {
+      setError(`File exceeds ${MAX_MB} MB limit.`);
+      return;
+    }
+    setFile(f);
+    setError(null);
+    if (!title) setTitle(f.name.replace(/\.[^/.]+$/, ''));
   };
+
+  const handleFileSelect = (e) => validateAndSetFile(e.target.files[0]);
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    validateAndSetFile(droppedFile);
+    validateAndSetFile(e.dataTransfer.files[0]);
   };
 
-  const validateAndSetFile = (selectedFile) => {
-    if (selectedFile) {
-      if (selectedFile.size > 100 * 1024 * 1024) {
-        setError('File size exceeds 100MB limit.');
-        return;
-      }
-      setFile(selectedFile);
-      setError(null);
-      if (!title) {
-        setTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
-      }
-    }
+  const clearFile = () => {
+    setFile(null);
+    setTitle('');
+    setError(null);
+    setStep(0);
   };
 
+  /* ── Upload + poll ──────────────────────────────────────────────────────── */
   const handleUpload = async () => {
-    if (!file || !title) return;
-    
+    if (!file || !title.trim()) return;
     setUploading(true);
     setError(null);
 
     try {
-      // Step 1: Upload
       setStep(1);
-      let uploadResult;
-      if (file.size > 8 * 1024 * 1024) {
-        // Files over 8MB use presigned URL (bypasses API Gateway)
-        uploadResult = await api.uploadMeetingPresigned(file, title);
-      } else {
-        // Small files use direct upload
-        uploadResult = await api.uploadMeeting(file, title);
-      }
-      
-      // Check if this is a duplicate
+      const uploadResult = file.size > 8 * 1024 * 1024
+        ? await api.uploadMeetingPresigned(file, title)
+        : await api.uploadMeeting(file, title);
+
       if (uploadResult.duplicate) {
-        // Redirect to existing meeting with message
         navigate(`/meeting/${uploadResult.meetingId}`, {
           state: { message: 'This meeting was already analyzed' }
         });
         return;
       }
-      
+
       const id = uploadResult.meetingId;
-      setMeetingId(id);
-
-      // Step 2 & 3: Poll status
       setStep(2);
-      let attempts = 0;
-      const maxAttempts = 120; // 10 minutes max
 
-      while (attempts < maxAttempts) {
+      const MAX_ATTEMPTS = 120; // 10 min @ 5s intervals
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
         await new Promise(r => setTimeout(r, 5000));
-        
-        const statusResult = await api.getMeetingStatus(id);
-        
-        if (statusResult.status === 'TRANSCRIBING') {
-          setStep(2);
-        } else if (statusResult.status === 'ANALYZING') {
-          setStep(3);
-        } else if (statusResult.status === 'COMPLETED' || statusResult.status === 'COMPLETE') {
+        const { status } = await api.getMeetingStatus(id);
+
+        if      (status === 'TRANSCRIBING')                         setStep(2);
+        else if (status === 'ANALYZING')                            setStep(3);
+        else if (status === 'COMPLETED' || status === 'COMPLETE') {
           setStep(4);
           setTimeout(() => navigate(`/meeting/${id}`), 1500);
-          break;
-        } else if (statusResult.status === 'FAILED') {
-          throw new Error('Processing failed');
+          return;
+        } else if (status === 'FAILED') {
+          throw new Error('Processing failed on the server.');
         }
-        
-        attempts++;
       }
+      throw new Error('Processing timed out after 10 minutes.');
 
-      if (attempts >= maxAttempts) {
-        throw new Error('Processing timed out');
-      }
     } catch (err) {
-      console.error('Upload failed:', err);
-      setError(err.message || 'Something went wrong');
+      console.error('Upload error:', err);
+      setError(err.message || 'Something went wrong.');
       setStep(-1);
       setUploading(false);
     }
@@ -113,22 +96,17 @@ function UploadMeeting() {
     setUploading(false);
   };
 
-  // Map step to status for UploadProgress component
-  const getStatus = () => {
-    if (step === 1) return 'uploading';
-    if (step === 2) return 'transcribing';
-    if (step === 3) return 'analyzing';
-    if (step === 4) return 'ready';
-    return 'idle';
-  };
-
+  /* ── Show progress screen while processing ──────────────────────────────── */
+  const statusMap = { 1: 'uploading', 2: 'transcribing', 3: 'analyzing', 4: 'ready' };
   if (uploading && step > 0 && step !== -1) {
-    return <UploadProgress status={getStatus()} title={title} />;
+    return <UploadProgress status={statusMap[step]} title={title} />;
   }
 
+  /* ── Idle / file select UI ───────────────────────────────────────────────── */
   return (
     <div className="app-container" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
       <div style={{ maxWidth: '520px', margin: '0 auto' }}>
+
         <div style={{ marginBottom: '48px' }}>
           <h1 style={{
             fontFamily: 'Fraunces',
@@ -150,6 +128,7 @@ function UploadMeeting() {
 
         <div className="card" style={{ padding: '32px' }}>
           {!file ? (
+            /* ── Drop zone ── */
             <div
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
@@ -161,7 +140,8 @@ function UploadMeeting() {
                 padding: '64px 24px',
                 textAlign: 'center',
                 transition: 'all 200ms ease',
-                background: isDragging ? 'var(--bg-elevated)' : 'var(--bg-surface)'
+                background: isDragging ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                cursor: 'pointer',
               }}
             >
               <input
@@ -174,7 +154,7 @@ function UploadMeeting() {
                   width: '100%',
                   height: '100%',
                   opacity: 0,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               />
               <div style={{
@@ -185,8 +165,9 @@ function UploadMeeting() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 20px',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-secondary)'
+                background: isDragging ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                color: isDragging ? 'var(--accent)' : 'var(--text-secondary)',
+                transition: 'all 200ms ease',
               }}>
                 <Upload size={24} />
               </div>
@@ -195,7 +176,7 @@ function UploadMeeting() {
                 fontWeight: 600,
                 fontSize: '16px',
                 color: 'var(--text)',
-                marginBottom: '6px'
+                marginBottom: '6px',
               }}>
                 Drop your recording here
               </h3>
@@ -203,53 +184,73 @@ function UploadMeeting() {
                 fontFamily: 'Plus Jakarta Sans',
                 fontSize: '14px',
                 color: 'var(--text-muted)',
-                marginBottom: '20px'
+                marginBottom: '20px',
               }}>
-                or click to browse
+                or click to browse · max {MAX_MB} MB
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                {['MP3', 'MP4', 'WAV', 'M4A'].map((format) => (
-                  <div
-                    key={format}
+                {['MP3', 'MP4', 'WAV', 'M4A', 'WEBM'].map(fmt => (
+                  <span
+                    key={fmt}
                     style={{
-                      padding: '6px 12px',
+                      padding: '4px 10px',
                       background: 'var(--bg-elevated)',
                       border: '1px solid var(--border)',
-                      borderRadius: '8px',
+                      borderRadius: '6px',
                       fontFamily: 'JetBrains Mono',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      color: 'var(--text-muted)'
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
                     }}
                   >
-                    {format}
-                  </div>
+                    {fmt}
+                  </span>
                 ))}
               </div>
+
+              {/* Show drop-zone error here (before file is selected) */}
+              {error && (
+                <div style={{
+                  marginTop: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: '13px',
+                  color: 'var(--danger)',
+                }}>
+                  <AlertCircle size={15} />
+                  {error}
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            /* ── File selected ── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+              {/* File info row */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '16px',
+                padding: '14px 16px',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border)',
-                borderRadius: '12px'
+                borderRadius: '12px',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <div style={{
-                    width: '44px',
-                    height: '44px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '10px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'var(--bg-surface)',
-                    color: 'var(--text)'
+                    background: 'var(--accent-dim)',
+                    color: 'var(--accent)',
+                    flexShrink: 0,
                   }}>
-                    <Upload size={20} />
+                    <Upload size={18} />
                   </div>
                   <div>
                     <p style={{
@@ -257,47 +258,45 @@ function UploadMeeting() {
                       fontSize: '14px',
                       fontWeight: 500,
                       color: 'var(--text)',
-                      marginBottom: '4px',
-                      maxWidth: '200px',
+                      maxWidth: '240px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
                     }}>
                       {file.name}
                     </p>
                     <p style={{
                       fontFamily: 'JetBrains Mono',
-                      fontSize: '12px',
-                      color: 'var(--text-muted)'
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      marginTop: '2px',
                     }}>
                       {(file.size / (1024 * 1024)).toFixed(2)} MB
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => setFile(null)}
+                  onClick={clearFile}
                   style={{
                     background: 'none',
                     border: 'none',
-                    padding: '8px',
+                    padding: '6px',
                     cursor: 'pointer',
-                    color: 'var(--text-secondary)',
+                    color: 'var(--text-muted)',
                     borderRadius: '6px',
-                    transition: 'all 150ms ease'
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'color 150ms ease',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-subtle)';
-                    e.currentTarget.style.color = 'var(--text)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'none';
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  title="Remove file"
                 >
-                  <X size={18} />
+                  <X size={17} />
                 </button>
               </div>
 
+              {/* Title input */}
               <div>
                 <label style={{
                   display: 'block',
@@ -305,54 +304,53 @@ function UploadMeeting() {
                   fontSize: '13px',
                   fontWeight: 500,
                   color: 'var(--text-secondary)',
-                  marginBottom: '8px'
+                  marginBottom: '8px',
                 }}>
                   Meeting Title
                 </label>
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={e => setTitle(e.target.value)}
                   placeholder="Q1 Strategy Sync"
                   className="input-standard"
                 />
               </div>
 
+              {/* Error */}
               {error && (
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
-                  padding: '16px',
-                  background: 'var(--high-bg)',
-                  border: '1px solid var(--high-border)',
-                  borderRadius: '12px',
+                  gap: '10px',
+                  padding: '12px 16px',
+                  background: 'rgba(224, 90, 107, 0.08)',
+                  border: '1px solid rgba(224, 90, 107, 0.25)',
+                  borderRadius: '10px',
                   fontFamily: 'Plus Jakarta Sans',
                   fontSize: '13px',
-                  fontWeight: 500,
-                  color: 'var(--high)'
+                  color: 'var(--danger)',
                 }}>
-                  <AlertCircle size={18} />
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
                   {error}
                 </div>
               )}
 
-              {step === -1 && (
+              {/* Action buttons */}
+              {step === -1 ? (
                 <button
                   onClick={handleRetry}
                   className="btn-secondary"
-                  style={{ width: '100%', padding: '14px' }}
+                  style={{ width: '100%', padding: '13px' }}
                 >
                   Try Again
                 </button>
-              )}
-
-              {step !== -1 && (
+              ) : (
                 <motion.button
                   onClick={handleUpload}
-                  disabled={!title}
+                  disabled={!title.trim()}
                   className="btn-primary"
-                  style={{ width: '100%', padding: '14px' }}
+                  style={{ width: '100%', padding: '13px' }}
                   whileTap={{ scale: 0.98 }}
                 >
                   Start AI Analysis

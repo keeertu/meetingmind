@@ -9,7 +9,7 @@ import boto3
 import requests as http_requests
 from db import get_meeting, update_meeting_status
 from s3_utils import get_json
-from utils import format_duration, get_logger
+from utils import format_duration, get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -76,6 +76,16 @@ def lambda_handler(event, context):
     """Poll transcription job status and trigger analysis when complete"""
     meeting_id = None
     try:
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
+        if not user_id:
+            logger.warning("Missing or invalid authentication token")
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Unauthorized'})
+            }
+        
         # Get meeting ID from path
         meeting_id = event.get('pathParameters', {}).get('meetingId')
         if not meeting_id:
@@ -92,6 +102,15 @@ def lambda_handler(event, context):
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'error': 'Meeting not found'})
+            }
+        
+        # Verify the authenticated user owns this meeting
+        if meeting.get('userId') != user_id:
+            logger.warning(f"Unauthorized access attempt by {user_id} for meeting {meeting_id}")
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Forbidden'})
             }
         
         # If already complete or analyzing, return current status
