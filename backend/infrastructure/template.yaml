@@ -85,7 +85,111 @@ Resources:
     Metadata:
       BuildMethod: python3.11
 
-  # Lambda Functions
+  # ─── CORS Preflight Handler ───────────────────────────────────────────────
+  # Handles all OPTIONS requests across every route with no auth,
+  # so API Gateway's Cognito authorizer never blocks preflight requests.
+  CorsPreflightFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: meetingmind-cors-preflight
+      InlineCode: |
+        def lambda_handler(event, context):
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE"
+                },
+                "body": ""
+            }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+      MemorySize: 128
+      Events:
+        ProfileOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /profile
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        MeetingsOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        MeetingIdOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        MeetingStatusOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/status
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        MeetingAnalyzeOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/analyze
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        MeetingChatOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/{meetingId}/chat
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        UploadOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/upload
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        UploadUrlOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/upload-url
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        ProcessOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/process
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        AnalyzeTextOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MeetingMindApi
+            Path: /meetings/analyze-text
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  # ─── Lambda Functions ─────────────────────────────────────────────────────
   UploadMeetingFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -220,7 +324,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref MeetingMindApi
-            Path: /profile/{userId}
+            Path: /profile
             Method: GET
 
   GetMeetingDigestFunction:
@@ -294,17 +398,47 @@ Resources:
             Path: /meetings/{meetingId}/chat
             Method: POST
 
-  # API Gateway
+  # ─── Cognito ──────────────────────────────────────────────────────────────
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: meetingmind-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: meetingmind-client
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+
+  # ─── API Gateway ──────────────────────────────────────────────────────────
   MeetingMindApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: prod
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
       Cors:
         AllowMethods: "'OPTIONS,POST,GET,PUT,DELETE'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
-  # Gateway Responses for CORS on errors
+  # Gateway Responses for CORS on errors (4xx/5xx from authorizer get headers too)
   GatewayResponseDefault4XX:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -313,6 +447,7 @@ Resources:
       ResponseParameters:
         gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET,PUT,DELETE'"
 
   GatewayResponseDefault5XX:
     Type: AWS::ApiGateway::GatewayResponse
@@ -322,6 +457,7 @@ Resources:
       ResponseParameters:
         gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET,PUT,DELETE'"
 
 Outputs:
   ApiUrl:
@@ -330,3 +466,9 @@ Outputs:
   RecordingsBucketName:
     Description: S3 bucket for recordings
     Value: !Ref RecordingsBucket
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref CognitoUserPoolClient

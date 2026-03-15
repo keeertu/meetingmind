@@ -15,7 +15,7 @@ import boto3
 import requests as http_requests
 from db import save_meeting, list_user_meetings
 from s3_utils import upload_file
-from utils import generate_meeting_id, get_logger
+from utils import generate_meeting_id, get_logger, get_user_id_from_token
 
 logger = get_logger(__name__)
 
@@ -91,19 +91,23 @@ def check_duplicate_meeting(user_id, filename):
 
 def handle_presigned_url(event):
     try:
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
+        if not user_id:
+            logger.warning("Missing or invalid authentication token")
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Unauthorized'})
+            }
+        
         body = event.get('body', '{}')
         if event.get('isBase64Encoded'):
             body = base64.b64decode(body).decode('utf-8')
         
         data = json.loads(body)
-        user_id = data.get('userId')
-        if not user_id:
-            return {
-                'statusCode': 400,
-                'headers': {'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'userId is required'})
-            }
-            
+        # user_id is now from token, not from body
+        
         filename = data.get('filename', 'recording.wav')
         title = data.get('title')
         if not title:
@@ -191,19 +195,23 @@ def handle_presigned_url(event):
 
 def handle_process(event):
     try:
+        # Get user ID from Cognito JWT token
+        user_id = get_user_id_from_token(event)
+        if not user_id:
+            logger.warning("Missing or invalid authentication token")
+            return {
+                'statusCode': 401,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Unauthorized'})
+            }
+        
         body = event.get('body', '{}')
         if event.get('isBase64Encoded'):
             body = base64.b64decode(body).decode('utf-8')
         
         data = json.loads(body)
-        user_id = data.get('userId')
-        if not user_id:
-            return {
-                'statusCode': 400,
-                'headers': {'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'userId is required'})
-            }
-            
+        # user_id is now from token, not from body
+        
         meeting_id = data.get('meetingId')
         s3_key = data.get('s3Key')
         title = data.get('title')
@@ -347,13 +355,14 @@ def lambda_handler(event, context):
                 
             file_data = base64.b64decode(file_b64)
             
-            # Validate required fields
-            user_id = data.get('userId')
+            # Get user ID from Cognito JWT token
+            user_id = get_user_id_from_token(event)
             if not user_id:
+                logger.warning("Missing or invalid authentication token")
                 return {
-                    'statusCode': 400,
+                    'statusCode': 401,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'userId is required'})
+                    'body': json.dumps({'error': 'Unauthorized'})
                 }
                 
             title = data.get('title')

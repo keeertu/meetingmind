@@ -1,136 +1,114 @@
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://mexwfgzor2.execute-api.us-east-1.amazonaws.com/prod';
 
-const getUserId = () => {
-  let userId = localStorage.getItem('meetingmind_user_id');
-  
-  // Handle cases where localStorage returns null, "null", or "undefined" as strings
-  if (!userId || userId === 'null' || userId === 'undefined' || userId.trim() === '') {
-    // Try to get from sessionStorage as backup
-    userId = sessionStorage.getItem('meetingmind_user_id');
-    
-    if (!userId || userId === 'null' || userId === 'undefined' || userId.trim() === '') {
-      // Generate new userId
-      userId = 'user_' + Math.random().toString(36).substr(2, 9);
-      console.log('Generated new userId:', userId);
-      
-      // Store in both localStorage and sessionStorage
-      try {
-        localStorage.setItem('meetingmind_user_id', userId);
-        sessionStorage.setItem('meetingmind_user_id', userId);
-      } catch (e) {
-        console.warn('Failed to save userId to storage:', e);
-      }
-    } else {
-      console.log('Recovered userId from sessionStorage:', userId);
-      // Restore to localStorage
-      try {
-        localStorage.setItem('meetingmind_user_id', userId);
-      } catch (e) {
-        console.warn('Failed to restore userId to localStorage:', e);
-      }
-    }
-  } else {
-    console.log('Using existing userId:', userId);
-    // Ensure it's also in sessionStorage
-    try {
-      sessionStorage.setItem('meetingmind_user_id', userId);
-    } catch (e) {
-      console.warn('Failed to backup userId to sessionStorage:', e);
-    }
-  }
-  
-  return userId;
-};
+/* ─── Auth helpers ────────────────────────────────────────────────────────── */
 
-// Don't export USER_ID as a constant - call getUserId() each time to ensure it's fresh
-export { getUserId };
-
-// Helper function to manually set userId (for recovery purposes)
-export const setUserId = (userId) => {
-  if (!userId || typeof userId !== 'string') {
-    throw new Error('Invalid userId provided');
-  }
-  
+// forceRefresh: true ensures we never send an expired token
+const getAuthToken = async () => {
   try {
-    localStorage.setItem('meetingmind_user_id', userId);
-    sessionStorage.setItem('meetingmind_user_id', userId);
-    console.log('Manually set userId:', userId);
-    return true;
-  } catch (e) {
-    console.error('Failed to set userId:', e);
-    return false;
+    const session = await fetchAuthSession({ forceRefresh: true });
+    const token = session.tokens?.idToken?.toString() ?? null;
+    if (!token) console.warn('getAuthToken: idToken is null', session);
+    return token;
+  } catch (err) {
+    console.error('getAuthToken error:', err);
+    return null;
   }
 };
 
-// Helper function to get current userId without generating a new one
-export const getCurrentUserId = () => {
-  return localStorage.getItem('meetingmind_user_id') || sessionStorage.getItem('meetingmind_user_id') || null;
+const getUserId = async () => {
+  try {
+    const user = await getCurrentUser();
+    return user.userId;
+  } catch (err) {
+    console.error('getUserId error:', err);
+    return null;
+  }
 };
+
+export { getUserId, getAuthToken };
+
+/* ─── Header builders ─────────────────────────────────────────────────────── */
+
+// JSON requests — throws immediately if no token so we get a clear error
+const authHeaders = async (extra = {}) => {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Unauthorized — no valid session token');
+  return {
+    'Content-Type': 'application/json',
+    Authorization: token, // API GW Cognito authorizer wants bare token, not "Bearer ..."
+    ...extra,
+  };
+};
+
+// Multipart uploads — no Content-Type so browser sets multipart boundary
+const authHeadersMultipart = async () => {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Unauthorized — no valid session token');
+  return { Authorization: token };
+};
+
+/* ─── Response checker ────────────────────────────────────────────────────── */
+
+const checkResponse = async (res, label) => {
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    console.error(`${label} failed [${res.status}]:`, text);
+    throw new Error(res.status === 401 ? 'Unauthorized' : text || `${label} failed`);
+  }
+  return res.json();
+};
+
+/* ─── API client ──────────────────────────────────────────────────────────── */
 
 export const api = {
-  // Profile
+  /* Profile ---------------------------------------------------------------- */
   async getProfile() {
-    const userId = getUserId();
-    const res = await fetch(`${BASE_URL}/profile/${userId}`);
-    if (!res.ok) throw new Error('Profile not found');
-    return res.json();
+    const res = await fetch(`${BASE_URL}/profile`, {
+      headers: await authHeaders(),
+    });
+    return checkResponse(res, 'getProfile');
   },
 
   async saveProfile(data) {
-    const userId = getUserId();
-    console.log("API saveProfile called with:", data);
-    const payload = { userId, ...data };
-    console.log("Sending payload:", payload);
-    
+    const payload = { ...data };
+    delete payload.userId; // server extracts userId from the JWT
     const res = await fetch(`${BASE_URL}/profile`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: await authHeaders(),
+      body: JSON.stringify(payload),
     });
-    
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Profile save failed:", errorText);
-      throw new Error(errorText || 'Failed to save profile');
-    }
-    
-    return res.json();
+    return checkResponse(res, 'saveProfile');
   },
 
-  // Meetings
+  /* Meetings --------------------------------------------------------------- */
   async getMeetings() {
-    const userId = getUserId();
-    console.log('Fetching meetings for userId:', userId);
-    const res = await fetch(`${BASE_URL}/meetings?userId=${userId}`);
-    if (!res.ok) {
-      console.error('Failed to fetch meetings. Status:', res.status);
-      throw new Error('Failed to fetch meetings');
-    }
-    const data = await res.json();
-    console.log('Received meetings data:', data);
-    
-    // Handle both array response and object with meetings property
-    const meetings = Array.isArray(data) ? data : (data.meetings || []);
-    console.log('Processed meetings:', meetings);
-    return meetings;
+    const res = await fetch(`${BASE_URL}/meetings`, {
+      headers: await authHeaders(),
+    });
+    const data = await checkResponse(res, 'getMeetings');
+    return Array.isArray(data) ? data : (data.meetings ?? []);
   },
 
   async getMeeting(meetingId) {
-    const userId = getUserId();
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}?userId=${userId}`);
-    if (!res.ok) throw new Error('Meeting not found');
-    return res.json();
+    const userId = await getUserId();
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}?userId=${userId}`, {
+      headers: await authHeaders(),
+    });
+    return checkResponse(res, 'getMeeting');
   },
 
   async getMeetingStatus(meetingId) {
-    const userId = getUserId();
-    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status?userId=${userId}`);
-    if (!res.ok) throw new Error('Failed to get status');
-    return res.json();
+    const userId = await getUserId();
+    const res = await fetch(`${BASE_URL}/meetings/${meetingId}/status?userId=${userId}`, {
+      headers: await authHeaders(),
+    });
+    return checkResponse(res, 'getMeetingStatus');
   },
 
   async uploadMeeting(file, title) {
-    const userId = getUserId();
+    const userId = await getUserId();
     const formData = new FormData();
     formData.append('file', file);
     formData.append('userId', userId);
@@ -138,87 +116,65 @@ export const api = {
 
     const res = await fetch(`${BASE_URL}/meetings/upload`, {
       method: 'POST',
-      body: formData
+      headers: await authHeadersMultipart(),
+      body: formData,
     });
-    if (!res.ok) throw new Error('Upload failed');
-    return res.json();
+    return checkResponse(res, 'uploadMeeting');
   },
 
   async uploadMeetingPresigned(file, title) {
-    const userId = getUserId();
-    // Step 1: Get presigned URL from backend
+    const userId = await getUserId();
+
+    // Step 1: get presigned S3 URL from backend
     const urlRes = await fetch(`${BASE_URL}/meetings/upload-url`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        filename: file.name,
-        title: title || file.name
-      })
+      headers: await authHeaders(),
+      body: JSON.stringify({ userId, filename: file.name, title: title || file.name }),
     });
+    const { presignedUrl, meetingId, s3Key, contentType } =
+      await checkResponse(urlRes, 'getPresignedUrl');
 
-    if (!urlRes.ok) {
-      const err = await urlRes.json();
-      throw new Error(err.error || 'Failed to get upload URL');
-    }
-
-    const { presignedUrl, meetingId, s3Key, contentType } = await urlRes.json();
-
-    // Step 2: Upload directly to S3 (no API Gateway)
+    // Step 2: PUT directly to S3 — NO Authorization header, presigned URL handles auth
     const s3Res = await fetch(presignedUrl, {
       method: 'PUT',
       body: file,
-      headers: { 'Content-Type': contentType || 'audio/wav' }
+      headers: { 'Content-Type': contentType || file.type || 'audio/wav' },
     });
-
     if (!s3Res.ok) {
-      throw new Error('Direct S3 upload failed');
+      const text = await s3Res.text().catch(() => '');
+      throw new Error(`S3 upload failed [${s3Res.status}]: ${text}`);
     }
 
-    // Step 3: Tell backend to start processing
+    // Step 3: tell backend to start transcription + analysis
     const processRes = await fetch(`${BASE_URL}/meetings/process`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        meetingId,
-        s3Key,
-        title: title || file.name
-      })
+      headers: await authHeaders(),
+      body: JSON.stringify({ userId, meetingId, s3Key, title: title || file.name }),
     });
-
-    if (!processRes.ok) {
-      const err = await processRes.json();
-      throw new Error(err.error || 'Failed to start processing');
-    }
+    await checkResponse(processRes, 'processMeeting');
 
     return { meetingId };
   },
 
   async analyzeMeeting(meetingId) {
-    const userId = getUserId();
+    const userId = await getUserId();
     const res = await fetch(`${BASE_URL}/meetings/${meetingId}/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId })
+      headers: await authHeaders(),
+      body: JSON.stringify({ userId }),
     });
-    if (!res.ok) throw new Error('Analysis failed');
-    return res.json();
+    return checkResponse(res, 'analyzeMeeting');
   },
 
   async chatWithMeeting(meetingId, question) {
-    const userId = getUserId();
+    const userId = await getUserId();
     const res = await fetch(`${BASE_URL}/meetings/${meetingId}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        question
-      })
+      headers: await authHeaders(),
+      body: JSON.stringify({ userId, question }),
     });
-    if (!res.ok) throw new Error('Chat failed');
-    return res.json();
-  }
+    return checkResponse(res, 'chatWithMeeting');
+  },
 };
 
 export default api;

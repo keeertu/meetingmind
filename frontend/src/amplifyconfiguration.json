@@ -1,0 +1,93 @@
+{
+    "UserAgent": "aws-amplify-cli/2.0",
+    "Version": "1.0",
+    "auth": {
+        "plugins": {
+            "awsCognitoAuthPlugin": {
+                "UserAgent": "aws-amplify-cli/0.1.0",
+                "Version": "0.1.0",
+                "IdentityManager": {
+                    "Default": {}
+                },
+                "CredentialsProvider": {
+                    "CognitoIdentity": {
+                        "Default": {
+                            "PoolId": "us-east-1:XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+                            "Region": "us-east-1"
+                        }
+                    }
+                },
+                "CognitoUserPool": {
+                    "Default": {
+                        "PoolId": "us-east-1_jURnqIcRi",
+                        "AppClientId": "3ft8k8iq0pfcf9h8o6469i4ok9",
+                        "Region": "us-east-1",
+                        "SignInAliases": {
+                            "email": true,
+                            "username": false,
+                            "phone": false
+                        },
+                        "UserPoolGroups": {
+                            "Default": {}
+                        },
+                        "PasswordSettings": {
+                            "MinimumLength": 8,
+                            "RequireLowercase": true,
+                            "RequireNumbers": true,
+                            "RequireSymbols": false,
+                            "RequireUppercase": true
+                        },
+                        "UsernameAttributes": [
+                            "EMAIL"
+                        ],
+                        "VerificationMessage": {
+                            "DeliveryMedium": "EMAIL",
+                            "EmailMessage": "Your verification code is {####}",
+                            "EmailSubject": "Your verification code",
+                            "SmsMessage": "Your verification code is {####}"
+                        },
+                        "DeviceTracking": {
+                            "DeviceTracking": "OFF"
+                        },
+                        "Mfa": {
+                            "Enabled": false,
+                            "TOTP": false,
+                            "SMS": false
+                        },
+                        "SignUpAttributes": [
+                            "EMAIL"
+                        ],
+                        "PasswordRecovery": {
+                            "DeliveryMedium": "EMAIL",
+                            "EmailMessage": "Your password reset code is {####}",
+                            "EmailSubject": "Reset your password"
+                        }
+                    }
+                },
+                "Auth": {
+                    "Default": {
+                        "authenticationFlowType": "USER_SRP_AUTH",
+                        "socialProviders": [],
+                        "usernameAttributes": [
+                            "EMAIL"
+                        ],
+                        "signupAttributes": [
+                            "EMAIL"
+                        ],
+                        "passwordProtectionSettings": {
+                            "passwordPolicyMinLength": 8,
+                            "passwordPolicyCharacters": []
+                        },
+                        "mfaConfiguration": "OFF",
+                        "mfaTypes": [
+                            "SMS"
+                        ],
+                        "verificationMechanisms": [
+                            "EMAIL"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
